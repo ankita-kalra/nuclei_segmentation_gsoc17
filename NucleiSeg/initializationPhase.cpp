@@ -7,16 +7,12 @@ initializationPhase::initializationPhase(Mat im)
 
 vector<Mat> initializationPhase::colordeconv(Mat I, Mat M, Mat stains)
 {   
-	//std::cout << "1"<< M << endl;
-	
+	Mat diff_checker; vector<Mat> test;
 	for (int i = 0; i < 3; i++)
 	{
 		if (norm(M.col(i)))
 			M.col(i) /= norm(M.col(i));
-		//std::cout << norm(M.col(i)) << endl;
-		//std::cout << norm(M.col(i), NORM_L2) << endl;
 	}
-	//std::cout << "2" << endl << M << endl;
 	if (norm(M.col(2)) == 0)
 	{   
 		double x1 =  pow(M.at<double>(0, 0),2);
@@ -27,17 +23,14 @@ vector<Mat> initializationPhase::colordeconv(Mat I, Mat M, Mat stains)
 		{
 			M.at<double>(0, 2) = sqrt(1-(x1+x2));
 		}
-	//	std::cout << "3" << endl << M << endl;
 		 x1 = pow(M.at<double>(1, 0), 2);
 		 x2 = pow(M.at<double>(1, 1), 2);
 		if ((x1 + x2) > 1)
 			M.at<double>(1, 2) = 0;
 		else
 		{
-			M.at<double>(1, 2) = sqrt(1 - x1 + x2);
+			M.at<double>(1, 2) = sqrt(1 - (x1 + x2));
 		}
-	//	std::cout << M << endl;
-
 		x1 = pow(M.at<double>(2, 0), 2);
 		x2 = pow(M.at<double>(2, 1), 2);
 		if ((x1 + x2) > 1)
@@ -48,18 +41,24 @@ vector<Mat> initializationPhase::colordeconv(Mat I, Mat M, Mat stains)
 		}
 		M.col(2)/= norm(M.col(2));
 	}
-	//std::cout << M << endl;
-	Mat Q = M.inv(DECOMP_LU);
-	//std::cout << Q << endl;
-	Mat temp1 = im2vec(I);
-	temp1.convertTo(temp1,CV_32FC3);
-	Mat y_OD = colordeconv_normalize(temp1); 
-	y_OD.convertTo(y_OD, CV_64FC1); Q.convertTo(Q, CV_64FC1);
+	cout << "M= " << endl << M << endl;
+	Mat Q = (Mat_<double>(3, 3) << 4.8869, - 0.7311, - 3.9831, -4.3780 ,   1.8015  ,  3.5684, -0.0688 ,- 0.4440  ,  1.3462);
+	Q = M.inv(DECOMP_LU);
+	cvtColor(I, I, CV_BGR2RGB);
+	split(I, test);
+	merge(test, I);
+	Mat temp1 = im2vec(I),temp1_1,temp1_2;
+	temp1.convertTo(temp1_2,CV_32F);
+	Mat y_OD = colordeconv_normalize(temp1_2); 
+	y_OD.convertTo(y_OD, CV_64FC1);
 
+	Q.convertTo(Q, CV_32FC1);
+	Q.convertTo(Q, CV_64FC1);
+	
 	Mat C = Q*y_OD;
 	Mat channel = colordeconv_denormalize(C);
 	int m = I.rows; int n = I.cols;
-	Mat intensity=Mat::zeros(I.size(),CV_8UC3),temp2;
+	Mat intensity=Mat::zeros(I.size(),CV_32FC3),temp2;
 	vector<Mat> splitCh;
 	cv::split(intensity, splitCh);
 	for (int i = 0; i < stains.cols; i++)
@@ -69,22 +68,29 @@ vector<Mat> initializationPhase::colordeconv(Mat I, Mat M, Mat stains)
 		splitCh[i] = matlab_reshape(temp2, m, n, 1);
 	}
 	merge(splitCh, intensity);
+
 	vector<Mat> colorStainImages;
 	Mat stain_OD, stain_RGB,temp3;
-	for (int i = 0; i < stains.cols; i++)
-	{
+	for (int i = 0; i <3; i++)
+	{  
 		stain_OD = M.col(i)*C.row(i);
 		stain_RGB = colordeconv_denormalize(stain_OD);
+		double minVal;
+		double maxVal;
+		Point minLoc;
+		Point maxLoc;
+		minMaxLoc(stain_RGB, &minVal, &maxVal, &minLoc, &maxLoc);
+		stain_RGB -= minVal;
+		stain_RGB.convertTo(stain_RGB, CV_8U, 255 / (maxVal - minVal));
+		minMaxLoc(stain_RGB, &minVal, &maxVal, &minLoc, &maxLoc);
 		splitCh[0] = matlab_reshape(stain_RGB.row(0), m, n, 1);
 		splitCh[1] = matlab_reshape(stain_RGB.row(1), m, n, 1);
 		splitCh[2] = matlab_reshape(stain_RGB.row(2), m, n, 1);
 		merge(splitCh, temp3);
 		colorStainImages.push_back(temp3);
-		std::cout << "iteration: "<< i <<"limit: " << stains.cols <<  endl;
 	}
 	std::cout << colorStainImages.size() << endl;
 	return colorStainImages;
-
 }
 
 Mat initializationPhase::im2vec(Mat I)
@@ -94,6 +100,7 @@ Mat initializationPhase::im2vec(Mat I)
 	vector<Mat> splitted;
 	Mat vec;
 	Mat temp;
+	
 	if (I.channels() == 3)
 	{
 		cv::split(I, splitted);
@@ -105,7 +112,6 @@ Mat initializationPhase::im2vec(Mat I)
 			vec.push_back(temp);
 		}
 	}
-	
 	else if (I.channels() == 1)
 	{
 		transpose(I, I);
@@ -134,8 +140,8 @@ Mat initializationPhase::colordeconv_normalize(Mat data)
 Mat initializationPhase::colordeconv_denormalize(Mat data)
 {
 	Mat denorm_deconv;
-	exp(data, denorm_deconv);
-	denorm_deconv += 255;
+	exp(-data, denorm_deconv);
+	denorm_deconv *= 255;
 	return denorm_deconv;
 }
 
