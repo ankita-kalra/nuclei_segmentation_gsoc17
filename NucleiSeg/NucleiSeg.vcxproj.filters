@@ -21,9 +21,15 @@
     <ClCompile Include="initializationPhase.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="frangi.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="initializationPhase.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="frangi.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

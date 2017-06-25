@@ -19,10 +19,12 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="frangi.cpp" />
     <ClCompile Include="initializationPhase.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="frangi.h" />
     <ClInclude Include="initializationPhase.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

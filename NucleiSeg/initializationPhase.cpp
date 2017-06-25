@@ -1,4 +1,5 @@
 #include "initializationPhase.h"
+#include "frangi.h"
 
 initializationPhase::initializationPhase(Mat im)
 {
@@ -87,10 +88,25 @@ vector<Mat> initializationPhase::colordeconv(Mat I, Mat M, Mat stains)
 		splitCh[1] = matlab_reshape(stain_RGB.row(1), m, n, 1);
 		splitCh[2] = matlab_reshape(stain_RGB.row(2), m, n, 1);
 		merge(splitCh, temp3);
+		//imshow("Color Deconvolved Image", temp3);
+		//waitKey(0);
 		colorStainImages.push_back(temp3);
+		temp3.release();
 	}
 	std::cout << colorStainImages.size() << endl;
 	return colorStainImages;
+}
+
+void initializationPhase::preprocess_hemat(Mat hemat)
+{  
+    Mat CCS= complement_contrast_smoothen(hemat);
+	
+	Mat result = diff_image(CCS);
+	result.convertTo(result, CV_32F);
+	CCS = voting_map_const(result);
+	imshow("preprocessed_image", CCS);
+	waitKey(0);
+	
 }
 
 Mat initializationPhase::im2vec(Mat I)
@@ -145,6 +161,53 @@ Mat initializationPhase::colordeconv_denormalize(Mat data)
 	return denorm_deconv;
 }
 
+Mat initializationPhase::complement_contrast_smoothen(Mat hemat)
+{   
+	Mat result, G,h;
+	int kernel_size = 4;
+	Mat gray_hemat;
+	double alpha = 3.0; int beta = 30;
+	if (hemat.channels()>1)
+		cvtColor(hemat, gray_hemat, CV_BGR2GRAY);
+	result = Mat::zeros(gray_hemat.size(), gray_hemat.type());
+	cout << type2str(gray_hemat.type()) << endl;
+	for (int y = 0; y < gray_hemat.rows; y++)
+	{
+		for (int x = 0; x < gray_hemat.cols; x++)
+		{
+				result.at<uchar>(y, x) =
+					saturate_cast<uchar>(alpha*(gray_hemat.at<uchar>(y, x)) + beta);
+		}
+	}
+	
+	h = 255 - result;
+	GaussianBlur(h,G, Size(2*kernel_size+1, 2*kernel_size+1), 1);
+	//imshow("pre-processed image", G);
+	//waitKey(0);
+	return G;
+}
+
+Mat initializationPhase::diff_image(Mat smoothened)
+{
+	Mat result;
+	int morph_size = 6;
+	int morph_elem = MORPH_ELLIPSE;
+	Mat element = getStructuringElement(morph_elem, Size(2 * morph_size + 1, 2 * morph_size + 1));
+	morphologyEx(smoothened, result, MORPH_OPEN, element);
+	result = abs(smoothened-result);
+	return result;
+}
+
+Mat initializationPhase::voting_map_const(Mat pp) {
+	frangi2d_opts_t opts;
+	frangi2d_createopts(&opts);
+	Mat vesselness, scale, angles;
+	frangi2d(pp,vesselness,scale,angles,opts);
+	imshow("Vessel filtered", vesselness);
+	waitKey(500);
+	return vesselness;
+}
+
 Mat initializationPhase::matlab_reshape(const Mat &m, int new_row, int new_col, int new_ch)
 {
 	int old_row, old_col, old_ch;
@@ -174,3 +237,27 @@ Mat initializationPhase::matlab_reshape(const Mat &m, int new_row, int new_col, 
 	merge(r, result);
 	return result;
 }
+
+string initializationPhase::type2str(int type) {
+	string r;
+
+	uchar depth = type & CV_MAT_DEPTH_MASK;
+	uchar chans = 1 + (type >> CV_CN_SHIFT);
+
+	switch (depth) {
+	case CV_8U:  r = "8U"; break;
+	case CV_8S:  r = "8S"; break;
+	case CV_16U: r = "16U"; break;
+	case CV_16S: r = "16S"; break;
+	case CV_32S: r = "32S"; break;
+	case CV_32F: r = "32F"; break;
+	case CV_64F: r = "64F"; break;
+	default:     r = "User"; break;
+	}
+
+	r += "C";
+	r += (chans + '0');
+
+	return r;
+}
+

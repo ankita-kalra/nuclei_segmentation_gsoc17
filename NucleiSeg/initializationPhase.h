@@ -13,14 +13,14 @@ using namespace cv;
 
 class initializationPhase {
 
-	Mat colordeconvim;
+	Mat result_intermediate;
 	Mat input;
 
   public:
     
 	initializationPhase(Mat im);
 	vector<Mat> colordeconv(Mat I,Mat M,Mat stains);
-	
+	void preprocess_hemat(Mat hemat);
 
   private:
 	
@@ -28,8 +28,9 @@ class initializationPhase {
 	Mat im2vec(Mat I);
 	Mat matlab_reshape(const Mat &m, int new_row, int new_col, int new_ch);
 	Mat colordeconv_denormalize(Mat data);
-
-
-
+	Mat complement_contrast_smoothen(Mat hemat);
+	Mat diff_image(Mat smoothened);
+	Mat voting_map_const(Mat pp);
+	string type2str(int type);
 
 };
