@@ -20,7 +20,8 @@ class initializationPhase {
     
 	initializationPhase(Mat im);
 	vector<Mat> colordeconv(Mat I,Mat M,Mat stains);
-	void preprocess_hemat(Mat hemat);
+	Mat preprocess_hemat_generate_vote(Mat hemat);
+	Mat im_32f_or_64f_to_8u(Mat _fpImage);
 
   private:
 	

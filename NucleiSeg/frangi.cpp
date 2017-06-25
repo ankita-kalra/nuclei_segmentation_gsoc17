@@ -68,21 +68,14 @@ void frangi2_eig2image(const Mat &Dxx, const Mat &Dxy, const Mat &Dyy, Mat &lamb
 	//calculate eigenvectors of J, v1 and v2
 	Mat tmp, tmp2;
 	tmp2 = Dxx - Dyy;
-	cout <<tmp2.type() << endl;
-	cout << tmp.type() << endl;
 	tmp2.convertTo(tmp2, CV_32F);
 	tmp.convertTo(tmp, CV_32F);
-	cout << tmp2.type() << endl;
-	cout << tmp.type() << endl;
 	Mat dxy_local = Dxy.clone();
 	Mat dyy_local = Dyy.clone();
 	Mat dxx_local = Dxx.clone();
 	dxy_local.convertTo(dxy_local, CV_32F);
 	dxx_local.convertTo(dxx_local, CV_32F);
 	dyy_local.convertTo(dyy_local, CV_32F);
-	cout << dxy_local.type() << endl;
-	cout << dyy_local.type() << endl;
-	cout << dxx_local.type() << endl;
 	sqrt(tmp2.mul(tmp2) + 4*dxy_local.mul(dxy_local), tmp);
 	Mat v2x = 2*dxy_local;
 	Mat v2y = dyy_local - dxx_local+ tmp;

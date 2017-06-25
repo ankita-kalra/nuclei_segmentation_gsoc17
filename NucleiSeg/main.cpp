@@ -31,9 +31,10 @@ int main() {
 		imwrite("Hemat_" + to_string(i) + ".png", deconv[0]);
 		imwrite("Eosin_" + to_string(i) + ".png", deconv[1]);
 		Mat im = imread("Hemat_" + to_string(i) + ".png");
-		imshow("Input Hemat", im);
-		waitKey(20);
-		ip.preprocess_hemat(im);
+		Mat result=ip.preprocess_hemat_generate_vote(im);
+		result = ip.im_32f_or_64f_to_8u(result);
+		imwrite("voting_map_" + to_string(i) + ".png", result);
+		
 	}
 	
 

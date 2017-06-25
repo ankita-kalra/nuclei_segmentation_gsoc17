@@ -6,6 +6,20 @@ initializationPhase::initializationPhase(Mat im)
 	input = im;
 }
 
+Mat initializationPhase::im_32f_or_64f_to_8u(Mat _fpImage) {
+	
+	double minVal;
+	double maxVal;
+	Point minLoc;
+	Point maxLoc;
+	minMaxLoc(_fpImage, &minVal, &maxVal, &minLoc, &maxLoc);
+	_fpImage -= minVal;
+	Mat _8ucImage;
+	_fpImage.convertTo(_8ucImage, CV_8U, 255 / (maxVal - minVal));
+	
+	return _8ucImage;
+}
+
 vector<Mat> initializationPhase::colordeconv(Mat I, Mat M, Mat stains)
 {   
 	Mat diff_checker; vector<Mat> test;
@@ -88,8 +102,6 @@ vector<Mat> initializationPhase::colordeconv(Mat I, Mat M, Mat stains)
 		splitCh[1] = matlab_reshape(stain_RGB.row(1), m, n, 1);
 		splitCh[2] = matlab_reshape(stain_RGB.row(2), m, n, 1);
 		merge(splitCh, temp3);
-		//imshow("Color Deconvolved Image", temp3);
-		//waitKey(0);
 		colorStainImages.push_back(temp3);
 		temp3.release();
 	}
@@ -97,16 +109,14 @@ vector<Mat> initializationPhase::colordeconv(Mat I, Mat M, Mat stains)
 	return colorStainImages;
 }
 
-void initializationPhase::preprocess_hemat(Mat hemat)
+Mat initializationPhase::preprocess_hemat_generate_vote(Mat hemat)
 {  
     Mat CCS= complement_contrast_smoothen(hemat);
-	
-	Mat result = diff_image(CCS);
-	result.convertTo(result, CV_32F);
-	CCS = voting_map_const(result);
-	imshow("preprocessed_image", CCS);
-	waitKey(0);
-	
+	Mat diff = diff_image(CCS);
+	CCS.release();
+	diff.convertTo(diff, CV_32F);
+	Mat vote_map = voting_map_const(diff);
+	return vote_map;
 }
 
 Mat initializationPhase::im2vec(Mat I)
@@ -203,8 +213,6 @@ Mat initializationPhase::voting_map_const(Mat pp) {
 	frangi2d_createopts(&opts);
 	Mat vesselness, scale, angles;
 	frangi2d(pp,vesselness,scale,angles,opts);
-	imshow("Vessel filtered", vesselness);
-	waitKey(500);
 	return vesselness;
 }
 
