@@ -38,6 +38,16 @@ class initializationPhase {
 	string type2str(int type);
 	Mat bwareaopen(Mat img, int size);
 	template <class T>
-	Mat findValue(const cv::Mat &mat, T value);
+	bool findValue(const cv::Mat &mat, T value);
+	Mat squareform(Mat vector_mat);
+	template <typename T>
+	Mat ismember(Mat_<T> mat1, Mat_<T> mat2);
+	Mat ismember_poly(Mat mat1, Mat mat2);
+	template <typename T>
+	Mat matlab_find(Mat_<T> mat1);
+	Mat matlab_find_poly(Mat mat1);
+	int matlab_min(Mat accuD);
+	Mat matlab_pedge(Mat peaks, Mat edge_canny, Mat D, int minD);
+	vector<double>linspace(double a, double b, int n);
 
 };

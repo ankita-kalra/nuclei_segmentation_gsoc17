@@ -121,6 +121,54 @@ Mat initializationPhase::preprocess_hemat_generate_vote(Mat hemat)
 	return vote_map;
 }
 
+Mat initializationPhase::squareform(Mat vector_mat)
+{
+	int a = vector_mat.cols;
+	Mat temp, result;
+	double d = (1 + sqrt(1 + 8 * a)) / 2;
+	if (floor(d) == d)
+	{
+		d = (int)d;
+		for (int i = 0; i < d; i++)
+		{
+			for (int j = 0; j < d; j++)
+			{
+				cout << "i: " << i << " j: " << j << endl;
+				if (i != 0 && j != 0 && i != j)
+					temp.push_back(vector_mat.at<int>(Point(i + j, 0)));
+				else if (i != j)
+					temp.push_back(vector_mat.at<int>(Point(i + j - 1, 0)));
+				else
+					temp.push_back(0);
+			}
+			temp = temp.t();
+			result.push_back(temp);
+			temp.release();
+		}
+		cout << "result = " << endl << result << endl;
+		return result;
+	}
+	else {
+		cout << "invalid input size" << endl;
+		return Mat::zeros(Size(3, 3), CV_8UC1);
+	}
+}
+
+int initializationPhase::matlab_min(Mat accuD)
+{
+	double min_no = INFINITY; int min_idx = 0;
+	for (int i = 0; i < accuD.rows; i++)
+	{
+		if (accuD.at<double>(Point(0, i)) < min_no)
+		{
+			min_no = accuD.at<double>(Point(0, i));
+			min_idx = i;
+
+		}
+	}
+	return min_idx;
+}
+
 Mat initializationPhase::merge1(Mat input,Mat vote_map)
 {
 	Mat bin_image;
@@ -170,6 +218,7 @@ Mat initializationPhase::merge1(Mat input,Mat vote_map)
 		centroids.col(1) = min(vote_map.rows, centroids.col(1));
 		Mat otsuTF;
 		double area_threshold = minA + exp(alpha*vnorm.at<float>(0, i));
+		Mat removeL;
 		for (int i1 = 0; i1 < centroids.rows; i1++)
 		{
 			otsuTF.push_back(otsuBW.at<int>(Point((centroids.col(0)).at<int>(i1), centroids.col(1).at<int>(i1))));
@@ -183,9 +232,42 @@ Mat initializationPhase::merge1(Mat input,Mat vote_map)
 		nLabels = connectedComponentsWithStats(b, labels, stats, centroids, connectivity_4, CV_32S);
 		int cand_length = centroids.rows;
 		cout << "new" << cand_length << "center candidates at voting threshold: " << mt.at<int>(i) << endl;
+		
+		if (!peaks.rows == 0 && !peaks.cols == 0)
+		{
+			for (int i1 = 0; i1 < peaks.rows; i1++)
+			{
+				removeL.push_back(labels.at<int>(Point((peaks.col(0)).at<int>(i1), peaks.col(1).at<int>(i1))));
+			}
+			removeL = removeL.t();
+			Mat iter;
+			for (int i2 = 0; i2 < cand_length; i2++)
+				iter.push_back(i2 + 1);
+			iter = iter.t();
+			removeTF = ismember_poly(iter, removeL);
+			Mat temp_idx = matlab_find_poly(removeTF);
+			Mat new_centroids; int prev = 0, curr = 0;
+			for (int iwl = 0; iwl < temp_idx.cols; iwl++)
+			{
+				curr = temp_idx.at<int>(Point(iwl, 1)) - 1;
+				new_centroids.push_back(centroids(Rect(0, prev, 2, curr - prev)));
+				prev = curr + 1;
+			}
+			centroids = new_centroids.clone();
+			new_centroids.release();
+			cout << " reduce " << sum(removeTF) << " centers covered by connected component of upper level centers:" << endl;
+		}
+		else
+		{
+			cout << "removeTF is null" << endl;
+		}
+		
 		centroids = max(1, centroids);
 		centroids.col(0) = min(vote_map.cols, centroids.col(0));
 		centroids.col(1) = min(vote_map.rows, centroids.col(1));
+		Mat temp_peaks = peaks;
+	    temp_peaks.push_back(centroids);
+		centroids = temp_peaks;
 		int dist_length = 0;
 		while (1)
 		{
@@ -201,14 +283,13 @@ Mat initializationPhase::merge1(Mat input,Mat vote_map)
 			Mat evaluate = D > minD;
 			if (sum(evaluate).val[0] == D.rows)
 				break;
-
-			//Correct - Squareform
+			D = squareform(D);
 			for (int i3 = 0; i3 < D.rows; i3++)
 			{
 				D.at<float>(i, i) = HUGE_VALF;
 			}
 			Mat mergeTF = D <= minD;
-			Mat accuD = Mat::zeros(Size(1, D.rows - 1), CV_32F);
+			Mat accuD = Mat::zeros(Size(1, D.rows - 1), CV_64F);
 			accuD = INFINITY;
 			Mat mergeTF_temp;
 			for (int i4 = 0; i4 < D.rows - 1; i4++)
@@ -227,11 +308,11 @@ Mat initializationPhase::merge1(Mat input,Mat vote_map)
 						sumatidex += D.at<float>(Point(temp.at<int>(Point(iwl, 1))-1, i4));
 
 					}
-					accuD.at<int>(Point(0, i4)) = sumatidex;
+					accuD.at<double>(Point(0, i4)) = sumatidex;
 				}
 
 			}
-				int minInd = min(accuD);
+				int minInd = matlab_min(accuD);
 
 				Mat minLineMergeTF = Mat::zeros(Size(1, minInd), CV_8UC1);
 				minLineMergeTF.push_back(1);
@@ -273,12 +354,12 @@ Mat initializationPhase::merge1(Mat input,Mat vote_map)
 		int orig_length = peaks.rows;
 		peaks = centroids;
 		cout << "After voting threshold" << mt.at<int>(0,i) << " : "
-			<< orig_length << "(original)+" << cand_length << "(new candidate)-" << sum(removeTF) << "(connection)-" << dist_length << "(distance)=" << size(peaks, 1) << endl << endl;
+			<< orig_length << "(original)+" << cand_length << "(new candidate)-" << sum(removeTF) << "(connection)-" << dist_length << "(distance)=" << peaks.rows << endl << endl;
 		if ((orig_length + cand_length - sum(removeTF)(0) - dist_length) != peaks.rows)
 			cout << "error" << endl;
 		
 		}//for metrev
-
+		return peaks;
 	}//merge1
 
 
@@ -307,46 +388,59 @@ Mat initializationPhase::merge2(Mat input,Mat im)
 		}
 		Mat edgeTF = matlab_pedge(peaks, edge_canny, D, minD);
 		Mat evaluate = D > minD;
+		bitwise_or(evaluate, edgeTF, evaluate);
 		if (sum(evaluate).val[0] == D.rows)
 			break;
-		//Corrected- Squareform
+
+		D = squareform(D);
+		edgeTF = squareform(edgeTF);
 		for (int i3 = 0; i3 < D.rows; i3++)
 		{
 			D.at<float>(i3, i3) = HUGE_VALF;
 		}
 		Mat mergeTF = D <= minD;
-
+		for (int i3 = 0; i3 < D.rows; i3++)
+		{
+			edgeTF.at<float>(i3, i3) = false;
+		}
 		Mat accuD = Mat::zeros(Size(1, D.rows - 1), CV_32F);
 		accuD = INFINITY;
-		Mat mergeTF_temp;
+		Mat mergeTF_temp,edgeTF_temp;
 		for (int i4 = 0; i4 < D.rows - 1; i4++)
 		{
 			Mat lineMergeTF = Mat::zeros(Size(1, i4 + 1), CV_8UC1);
 			mergeTF_temp = mergeTF(Rect(i4 + 1, i4, mergeTF.cols - i4 - 1, 1));
 			mergeTF_temp = mergeTF_temp.t();
 			lineMergeTF.push_back(mergeTF_temp);
-
-			if (sum(lineMergeTF)[0] != 0)
+			Mat lineEdgeTF = Mat::zeros(Size(1, i4 + 1), CV_8UC1);
+			edgeTF_temp = edgeTF(Rect(i4 + 1, i4, edgeTF.cols - i4 - 1, 1));
+			edgeTF_temp = edgeTF_temp.t();
+			lineEdgeTF.push_back(edgeTF_temp);
+			Mat evaluate;
+			bitwise_not(lineEdgeTF, lineEdgeTF);
+			bitwise_and(lineMergeTF, lineEdgeTF, evaluate);
+			if (sum(evaluate)[0] != 0)
 			{
-				Mat temp = matlab_find_poly(lineMergeTF);
+				Mat temp = matlab_find_poly(evaluate);
 				float sumatidex = 0;
 				for (int iwl = 0; iwl < temp.cols; iwl++)
 				{
 					sumatidex += D.at<float>(Point(temp.at<int>(Point(iwl, 1)) - 1, i4));
 
 				}
-				accuD.at<int>(Point(0, i4)) = sumatidex;
+				accuD.at<double>(Point(0, i4)) = sumatidex;
 			}
-
 		}
-		int minInd = min(accuD);
+		int minInd = matlab_min(accuD);
 
 		Mat minLineMergeTF = Mat::zeros(Size(1, minInd), CV_8UC1);
 		minLineMergeTF.push_back(1);
-		mergeTF_temp = mergeTF(Rect(minInd + 1, minInd, mergeTF.cols - minInd - 1, 1));
+		Mat temp_eval;
+		bitwise_not(edgeTF, edgeTF);
+		bitwise_and(mergeTF,edgeTF,temp_eval);
+		mergeTF_temp = temp_eval(Rect(minInd + 1, minInd, mergeTF.cols - minInd - 1, 1));
 		mergeTF_temp = mergeTF_temp.t();
 		minLineMergeTF.push_back(mergeTF_temp);
-
 		Mat temp = matlab_find_poly(minLineMergeTF);
 		float sumatidex = 0, sumatidey = 0;
 		for (int iwl = 0; iwl < temp.cols; iwl++)
@@ -355,11 +449,11 @@ Mat initializationPhase::merge2(Mat input,Mat im)
 			sumatidey += input.at<float>(Point(1, temp.at<int>(Point(iwl, 1))));
 		}
 		sumatidex /= temp.cols; sumatidey /= temp.cols;
-		Point cluster_c = Point(sumatidex, sumatidey);
-		input.at<float>(Point(0, minInd)) = sumatidex;
-		input.at<float>(Point(1, minInd)) = sumatidey;
+		Point cluster_peak = Point(sumatidex, sumatidey);
+		peaks_stage1.at<float>(Point(0, minInd)) = sumatidex;
+		peaks_stage1.at<float>(Point(1, minInd)) = sumatidey;
 		Mat remainingMergeTF = Mat::zeros(Size(1, minInd), CV_8UC1);
-		mergeTF_temp = mergeTF(Rect(minInd + 1, minInd, mergeTF.cols - minInd - 1, 1));
+		mergeTF_temp = temp_eval(Rect(minInd + 1, minInd, temp_eval.cols - minInd - 1, 1));
 		mergeTF_temp = mergeTF_temp.t();
 		remainingMergeTF.push_back(mergeTF_temp);
 		temp = matlab_find_poly(remainingMergeTF);
@@ -367,18 +461,39 @@ Mat initializationPhase::merge2(Mat input,Mat im)
 		for (int iwl = 0; iwl < temp.cols; iwl++)
 		{
 			curr = temp.at<int>(Point(iwl, 1)) - 1;
-			new_centroids.push_back(input(Rect(0, prev, 2, curr - prev)));
+			new_centroids.push_back(peaks_stage1(Rect(0, prev, 2, curr - prev)));
 			prev = curr + 1;
 			// centroids.at<float>(Point(0,curr));
 			// centroids.at<float>(Point(1, temp.at<int>(Point(iwl, 1))));
 		}
-		input = new_centroids.clone();
-		std::cout << "cluster " << sum(minLineMergeTF) << "adjacent points by distance metric: minD= " << minD << endl;
-		Scalar s1 = sum(minLineMergeTF);
+		peaks_stage1 = new_centroids.clone();
+		std::cout << "cluster " << sum(minLineMergeTF).val[0] << "adjacent points by distance metric: minD= " << minD << endl;
+		canny_dist_length = canny_dist_length + sum(minLineMergeTF).val[0] - 1;
 		//dist_length = dist_length + s1(0) - 1;
 
 	}
-	
+
+	cout << peaks_stage1.rows << " (original)- " << canny_dist_length << " (distance)= " << peaks_stage1.rows - canny_dist_length << "(final)" << endl;
+	Mat stage1TF = Mat::ones(Size(peaks_stage1.rows,1),CV_8UC1);
+	Mat xTF, yTF;
+	for (int ixtf = 0; ixtf < peaks_stage1.rows; ixtf++)
+	{
+		xTF = input.col(0) == peaks_stage1.at<int>(Point(0, ixtf));
+		if (sum(xTF).val[0] == 0)
+		{
+			stage1TF.at<int>(Point(0, ixtf)) = 0;
+			continue;
+		}
+		Mat temp_ytf = matlab_find_poly(input);
+		for (int iytf = 0; iytf < temp_ytf.cols; iytf++)
+		{
+			yTF.push_back(input.at<int>(Point(1, temp_ytf.at<int>(Point(iytf, 0))))==peaks_stage1.at<int>(Point(1,ixtf)));
+		}
+			if (sum(yTF).val[0] == 0)
+				stage1TF.at<int>(0, ixtf) = 0;
+
+	}
+	return peaks_stage1;
 }
 
 template <class T>
@@ -392,7 +507,7 @@ bool initializationPhase::findValue(const cv::Mat &mat, T value) {
 }
 
 template <typename T>
-Mat ismember(Mat_<T> mat1, Mat_<T> mat2)
+Mat initializationPhase::ismember(Mat_<T> mat1, Mat_<T> mat2)
 {  
 	Mat oldMat = mat1;
 	Mat newMat = Mat::zeros(oldMat.size(),oldMat.type());
@@ -400,7 +515,7 @@ Mat ismember(Mat_<T> mat1, Mat_<T> mat2)
 	{
 		for (int c = 0; c < newMat.cols; c++)
 		{
-			if (findValue(mat2, oldMat.at<T>(Point(c, r))
+			if (findValue(mat2, oldMat.at<T>(Point(c, r))))
 				newMat.at<T>(Point(c, r)) = 1;
 			else
 				newMat.at<T>(Point(c, r)) = 0;
@@ -409,7 +524,7 @@ Mat ismember(Mat_<T> mat1, Mat_<T> mat2)
 	return newMat;
 }
 
-Mat ismember_poly(Mat mat1, Mat mat2)
+Mat initializationPhase::ismember_poly(Mat mat1, Mat mat2)
 {
 	switch (mat1.type())
 	{
@@ -433,7 +548,7 @@ Mat ismember_poly(Mat mat1, Mat mat2)
 }
 
 template <typename T>
-Mat matlab_find(Mat_<T> mat1)
+Mat initializationPhase::matlab_find(Mat_<T> mat1)
 {
 	Mat find_result;
 	for (int r = 0; r < mat1.rows; r++)
@@ -447,7 +562,7 @@ Mat matlab_find(Mat_<T> mat1)
 	return find_result.t();
 }
 
-Mat matlab_find_poly(Mat mat1)
+Mat initializationPhase::matlab_find_poly(Mat mat1)
 {
 	switch (mat1.type())
 	{
@@ -464,7 +579,7 @@ Mat matlab_find_poly(Mat mat1)
 	}
 }
 
-vector<double> linspace(double a, double b, int n) {
+vector<double> initializationPhase::linspace(double a, double b, int n) {
 	vector<double> array;
 	double epsilon = 0.0001;
 	double step = (b - a) / (n - 1);
@@ -494,7 +609,7 @@ vector<double> linspace(double a, double b, int n) {
 	return array;
 }
 
-Mat matlab_pedge(Mat peaks, Mat edge_canny, Mat D, int minD)
+Mat initializationPhase::matlab_pedge(Mat peaks, Mat edge_canny, Mat D, int minD)
 {
 	Mat LongDisTF = D > minD;
 	int M = edge_canny.cols;
