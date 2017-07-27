@@ -246,6 +246,21 @@ Mat LevelSegmentation::divergence(Mat X, Mat Y) {
 
 Mat LevelSegmentation::post_process(Mat u, Mat peakX, Mat peakY)
 {
+	Mat BW = Mat::zeros(u.cols, u.rows, CV_32F);
+	int c0 = 5;
+	const int nCol = u.cols;
+	const int nRow = u.rows;
+
+	threshold(u, BW, 0, THRESH_TOZERO);
+
+	Mat connComp;
+	int nComp = connectedComponents(BW, connComp);
+
+	Mat linearPeak = (peakX - 1)*nRow + peakY;
+
+	int biasThreshold = 3;
+
+	//--
 	return u;
 }
 
