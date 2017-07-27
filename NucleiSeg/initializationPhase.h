@@ -25,7 +25,7 @@ class initializationPhase {
 	Mat merge2(Mat input,Mat im);
 	Mat im_32f_or_64f_to_8u(Mat _fpImage);
 	Mat matlab_reshape(const Mat &m, int new_row, int new_col, int new_ch);
-
+	bool are_both_mats_same(Mat a, string filename,string variable_name);
   private:
 	
 	Mat colordeconv_normalize(Mat data);
@@ -49,5 +49,6 @@ class initializationPhase {
 	int matlab_min(Mat accuD);
 	Mat matlab_pedge(Mat peaks, Mat edge_canny, Mat D, int minD);
 	vector<double>linspace(double a, double b, int n);
+	
 
 };

@@ -1,5 +1,7 @@
 #include <opencv2/opencv.hpp>
 
+using namespace cv;
+
 ///Existing Implementation in C++ by: NTNU - Biomedical Optics 
 ///Modified for satisfying use-case
 /*
@@ -25,8 +27,8 @@ typedef struct{
 } frangi2d_opts_t;
 
 #define DEFAULT_SIGMA_START 3
-#define DEFAULT_SIGMA_END 7
-#define DEFAULT_SIGMA_STEP 1
+#define DEFAULT_SIGMA_END 10
+#define DEFAULT_SIGMA_STEP 0.3
 #define DEFAULT_BETA_ONE 1.6
 #define DEFAULT_BETA_TWO 0.08
 #define DEFAULT_BLACKWHITE true
@@ -37,7 +39,7 @@ typedef struct{
 /////////////////
 
 //apply full Frangi filter to src. Vesselness is saved in J, scale is saved to scale, vessel angle is saved to directions. 
-void frangi2d(const cv::Mat &src, cv::Mat &J, cv::Mat &scale, cv::Mat &directions, frangi2d_opts_t opts);
+cv::Mat frangi2d_vote(const cv::Mat &src, frangi2d_opts_t opts);
 
 
 
@@ -52,5 +54,5 @@ void frangi2d_hessian(const cv::Mat &src, cv::Mat &Dxx, cv::Mat &Dxy, cv::Mat &D
 void frangi2d_createopts(frangi2d_opts_t *opts);
 
 //estimate eigenvalues from Dxx, Dxy, Dyy. Save results to lambda1, lambda2, Ix, Iy. 
-void frangi2_eig2image(const cv::Mat &Dxx, const cv::Mat &Dxy, const cv::Mat &Dyy, cv::Mat &lambda1, cv::Mat &lambda2, cv::Mat &Ix, cv::Mat &Iy);
+cv::Mat frangi2_eig2image(Mat Dxx, Mat Dxy, Mat Dyy);
 

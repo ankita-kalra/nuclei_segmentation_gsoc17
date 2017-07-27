@@ -51,7 +51,6 @@ void frangi2d_hessian(const Mat &src, Mat &Dxx, Mat &Dxy, Mat &Dyy, float sigma)
 	delete [] kern_xy_f;
 	delete [] kern_yy_f;
 }
-
 void frangi2d_createopts(frangi2d_opts_t *opts){
 	//these parameters depend on the scale of the vessel, depending ultimately on the image size...
 	opts->sigma_start = DEFAULT_SIGMA_START;
@@ -62,9 +61,8 @@ void frangi2d_createopts(frangi2d_opts_t *opts){
 	opts->BetaTwo = DEFAULT_BETA_TWO; //appropriate background suppression for this specific image, but can change. 
 
 	opts->BlackWhite = DEFAULT_BLACKWHITE; 
-}
-		
-void frangi2_eig2image(const Mat &Dxx, const Mat &Dxy, const Mat &Dyy, Mat &lambda1, Mat &lambda2, Mat &Ix, Mat &Iy){
+}		
+Mat frangi2_eig2image(Mat Dxx, Mat Dxy, Mat Dyy){
 	//calculate eigenvectors of J, v1 and v2
 	Mat tmp, tmp2;
 	tmp2 = Dxx - Dyy;
@@ -77,96 +75,27 @@ void frangi2_eig2image(const Mat &Dxx, const Mat &Dxy, const Mat &Dyy, Mat &lamb
 	dxx_local.convertTo(dxx_local, CV_32F);
 	dyy_local.convertTo(dyy_local, CV_32F);
 	sqrt(tmp2.mul(tmp2) + 4*dxy_local.mul(dxy_local), tmp);
-	Mat v2x = 2*dxy_local;
-	Mat v2y = dyy_local - dxx_local+ tmp;
-
-	//normalize
-	Mat mag;
-	sqrt((v2x.mul(v2x) + v2y.mul(v2y)), mag);
-	Mat v2xtmp = v2x.mul(1.0f/mag);
-	v2xtmp.copyTo(v2x, mag != 0);
-	Mat v2ytmp = v2y.mul(1.0f/mag);
-	v2ytmp.copyTo(v2y, mag != 0);
-
-	//eigenvectors are orthogonal
-	Mat v1x, v1y;
-	v2y.copyTo(v1x);
-	v1x = -1*v1x;
-	v2x.copyTo(v1y);
-
 	//compute eigenvalues
 	Mat mu1 = 0.5*(dxx_local + dyy_local + tmp);
-	Mat mu2 = 0.5*(dxx_local + dyy_local - tmp);
-
-	//sort eigenvalues by absolute value abs(Lambda1) < abs(Lamda2)
-	Mat check = abs(mu1) > abs(mu2);
-	mu1.copyTo(lambda1); mu2.copyTo(lambda1, check);
-	mu2.copyTo(lambda2); mu1.copyTo(lambda2, check);
-
-	v1x.copyTo(Ix); v2x.copyTo(Ix, check);
-	v1y.copyTo(Iy); v2y.copyTo(Iy, check);
-	
+	return mu1;
 }
-
-
-void frangi2d(const Mat &src, Mat &maxVals, Mat &whatScale, Mat &outAngles, frangi2d_opts_t opts){
-	vector<Mat> ALLfiltered;
-	vector<Mat> ALLangles;
-	float beta = 2*opts.BetaOne*opts.BetaOne;
-	float c = 2*opts.BetaTwo*opts.BetaTwo;
-
-	for (float sigma = opts.sigma_start; sigma <= opts.sigma_end; sigma += opts.sigma_step){
+Mat frangi2d_vote(const Mat &src, frangi2d_opts_t opts){
+	Mat vote=Mat::zeros(src.size(),CV_8UC1);
+	for (float sigma = opts.sigma_start; sigma <= opts.sigma_end; sigma += 0.3){
 		//create 2D hessians
 		Mat Dxx, Dyy, Dxy;
 		frangi2d_hessian(src, Dxx, Dxy, Dyy, sigma);
-
-		//correct for scale
 		Dxx = Dxx*sigma*sigma;
 		Dyy = Dyy*sigma*sigma;
 		Dxy = Dxy*sigma*sigma;
 	
-		//calculate (abs sorted) eigenvalues and vectors
-		Mat lambda1, lambda2, Ix, Iy;
-		frangi2_eig2image(Dxx, Dxy, Dyy, lambda1, lambda2, Ix, Iy);
-		
-		//compute direction of the minor eigenvector
-		Mat angles;
-		phase(Ix, Iy, angles);
-		ALLangles.push_back(angles);
-		
-		//compute some similarity measures
-		lambda2.setTo(nextafterf(0, 1), lambda2 == 0);
-		Mat Rb = lambda1.mul(1.0/lambda2);
-		Rb = Rb.mul(Rb);
-		Mat S2 = lambda1.mul(lambda1) + lambda2.mul(lambda2);
-
-		//compute output image
-		Mat tmp1, tmp2;
-		exp(-Rb/beta, tmp1);
-		exp(-S2/c, tmp2);
-		cout << tmp1.type() << " " << tmp2.type() << " " << src.type() << endl;
-		Mat Ifiltered = tmp1.mul(Mat::ones(src.rows, src.cols, src.type()) - tmp2);
-		if (opts.BlackWhite){
-			Ifiltered.setTo(0, lambda2 < 0);
-		} else {
-			Ifiltered.setTo(0, lambda2 > 0);
-		}
-
-		//store results
-		ALLfiltered.push_back(Ifiltered);
+		//calculate (abs sorted) eigenvalues and vector		
+		Mat l1=frangi2_eig2image(Dxx, Dxy, Dyy);
+ 		Mat tf = l1 < 0;
+		Mat one_add = Mat::ones(tf.size(), CV_8UC1);
+		add(vote,one_add, vote, tf);
+		//cout << "sigma= " << sigma << endl;
 	}
 
-	float sigma = opts.sigma_start;
-	ALLfiltered[0].copyTo(maxVals);
-	ALLfiltered[0].copyTo(whatScale);
-	ALLfiltered[0].copyTo(outAngles);
-	whatScale.setTo(sigma);
-
-	//find element-wise maximum across all accumulated filter results
-	for (int i=1; i < ALLfiltered.size(); i++){
-		maxVals = max(maxVals, ALLfiltered[i]);
-		whatScale.setTo(sigma, ALLfiltered[i] == maxVals);
-		ALLangles[i].copyTo(outAngles, ALLfiltered[i] == maxVals);
-		sigma += opts.sigma_step;
-	}
+	return vote;
 }

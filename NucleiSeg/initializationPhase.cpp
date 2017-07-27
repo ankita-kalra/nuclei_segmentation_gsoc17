@@ -1,6 +1,9 @@
+#define HAVE_STRUCT_TIMESPEC
+
 #include "initializationPhase.h"
 #include "frangi.h"
 #include "library/cvbloblib/BlobResult.h"
+
 
 
 initializationPhase::initializationPhase(Mat im)
@@ -172,7 +175,13 @@ int initializationPhase::matlab_min(Mat accuD)
 Mat initializationPhase::merge1(Mat input,Mat vote_map)
 {
 	Mat bin_image;
-	threshold(input, bin_image, 0, 255, THRESH_BINARY | THRESH_OTSU);
+	Mat temp_input = input.clone();
+	cvtColor(temp_input, temp_input, CV_BGR2GRAY);
+	cout << "input  ready" << endl;
+	cout << temp_input.type() << endl;
+ 	threshold(temp_input, bin_image, 0, 255, THRESH_BINARY | THRESH_OTSU);
+	cout << "threshold done" << endl;
+	cout << bin_image.data << endl;
 	Mat otsuBW = bwareaopen(bin_image, 150);
 	double minD = 15, minA = 10, alpha = 10;
 	Mat vote = matlab_reshape(vote_map.t(), vote_map.rows*vote_map.cols, 1, 1);
@@ -221,7 +230,12 @@ Mat initializationPhase::merge1(Mat input,Mat vote_map)
 		Mat removeL;
 		for (int i1 = 0; i1 < centroids.rows; i1++)
 		{
-			otsuTF.push_back(otsuBW.at<int>(Point((centroids.col(0)).at<int>(i1), centroids.col(1).at<int>(i1))));
+			//
+			//centroids.convertTo(centroids, CV_8UC1);
+			//cout << centroids << endl;
+			//cout << "centroid x: " << (int)(centroids.col(0)).at<int>(1) << " centroid y: " << (int)(centroids.col(1)).at<int>(1) << endl;
+			cout << otsuBW.at<int>(Point((int)(centroids.col(0)).at<double>(i1), (int)centroids.col(1).at<double>(i1))) << endl;
+			otsuTF.push_back(otsuBW.at<int>(Point((int)(centroids.col(0)).at<double>(i1), (int)centroids.col(1).at<double>(i1))));
 			areas_b.push_back(stats.at<int>(i + 1, CC_STAT_AREA) > area_threshold);
 			bitwise_and(areas_b, otsuTF,merge_criteria1);
 			otsuTF.release(); areas_b.release();
@@ -361,8 +375,6 @@ Mat initializationPhase::merge1(Mat input,Mat vote_map)
 		}//for metrev
 		return peaks;
 	}//merge1
-
-
 
 Mat initializationPhase::merge2(Mat input,Mat im)
 {   
@@ -529,20 +541,20 @@ Mat initializationPhase::ismember_poly(Mat mat1, Mat mat2)
 	switch (mat1.type())
 	{
 		case CV_8U:
-			ismember<int>(mat1, mat2);
 			cout << "case 1" << endl;
+			return ismember<int>(mat1, mat2);
 			break;
 		case CV_32F:
-			ismember<float>(mat1, mat2);
 			cout << "case 2" << endl;
+			return ismember<float>(mat1, mat2);
 			break;
 		case CV_64F:
-			ismember<double>(mat1, mat2);
 			cout << "case 3" << endl;
+			return ismember<double>(mat1, mat2);
 			break;
 		default:
 			cout << "default" << endl;
-			ismember<int>(mat1, mat2);
+			return ismember<int>(mat1, mat2);
 	}
 
 }
@@ -556,7 +568,7 @@ Mat initializationPhase::matlab_find(Mat_<T> mat1)
 		for (int c = 0; c < mat1.cols; c++)
 		{
 			if (mat1.at<T>(Point(c, r)) != 0)
-				find_result.push_back(c + r + 1);
+				sfind_result.push_back(c + r + 1);
 		}
 	}
 	return find_result.t();
@@ -687,6 +699,7 @@ Mat initializationPhase::matlab_pedge(Mat peaks, Mat edge_canny, Mat D, int minD
 		}
 		ind += 1;
 	}
+	return edgeTF;
 }
 
 Mat initializationPhase::im2vec(Mat I)
@@ -762,8 +775,6 @@ Mat initializationPhase::complement_contrast_smoothen(Mat hemat)
 	
 	h = 255 - result;
 	GaussianBlur(h,G, Size(2*kernel_size+1, 2*kernel_size+1), 1);
-	//imshow("pre-processed image", G);
-	//waitKey(0);
 	return G;
 }
 
@@ -782,8 +793,8 @@ Mat initializationPhase::voting_map_const(Mat pp) {
 	frangi2d_opts_t opts;
 	frangi2d_createopts(&opts);
 	Mat vesselness, scale, angles;
-	frangi2d(pp,vesselness,scale,angles,opts);
-	return vesselness;
+	return frangi2d_vote(pp,opts);
+	
 }
 
 Mat initializationPhase::matlab_reshape(const Mat &m, int new_row, int new_col, int new_ch)
@@ -814,6 +825,28 @@ Mat initializationPhase::matlab_reshape(const Mat &m, int new_row, int new_col, 
 	Mat result;
 	merge(r, result);
 	return result;
+}
+
+bool initializationPhase::are_both_mats_same(Mat a, string filename, string variable_name)
+{
+	Mat local;
+	FileStorage fs_in(filename, FileStorage::READ);
+	fs_in[variable_name] >> local;
+	cout << "opencv_type= " << endl << a.type() << "matlab_type= " << endl << local.type() << endl;
+	cout << "opencv_size= " << endl << a.size() << "matlab_size= " << endl << local.size() << endl;
+	local.convertTo(local, a.type());
+	if (local.size() == a.size())
+	{
+		Scalar diff = sum(local - a);
+		if (diff == Scalar(0,0,0,0))
+			return true;
+		else {
+			cout << "diff= " << endl << diff << endl;
+			return false;
+		}
+	}
+	else
+		return false;
 }
 
 string initializationPhase::type2str(int type) {
@@ -855,3 +888,4 @@ Mat initializationPhase::bwareaopen(Mat img, int size)
 
 	return newimg;
 }
+

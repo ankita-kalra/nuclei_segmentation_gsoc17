@@ -34,11 +34,14 @@ int main() {
 		imwrite("Eosin_" + to_string(i) + ".png", deconv[1]);
 		Mat im = imread("Hemat_" + to_string(i) + ".png");
 		Mat result=ip.preprocess_hemat_generate_vote(im);
-		result = ip.im_32f_or_64f_to_8u(result);
-		imwrite("voting_map_" + to_string(i) + ".png", result);
+		cout << ip.are_both_mats_same(result, "./vote.yml", "vote") << endl;
+		//imwrite("voting_map_" + to_string(i) + ".png", result);
+
 		Mat merge_stage1 = ip.merge1(im, result);
-		Mat merge_stage2 = ip.merge2(merge_stage1, im);
-		cout << "centroids: " << merge_stage2 << endl;
+		//Mat merge_stage2 = ip.merge2(merge_stage1, im);
+		//cout << "centroids: " << merge_stage2 << endl;
+		
+	
 	}
 	
 
