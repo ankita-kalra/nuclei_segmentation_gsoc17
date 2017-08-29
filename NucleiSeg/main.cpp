@@ -38,8 +38,14 @@ int main() {
 		//imwrite("voting_map_" + to_string(i) + ".png", result);
 
 		Mat merge_stage1 = ip.merge1(im, result);
-		//Mat merge_stage2 = ip.merge2(merge_stage1, im);
-		//cout << "centroids: " << merge_stage2 << endl;
+		Mat merge_stage2 = ip.merge2(merge_stage1, im);
+		//cout << "centroids: " << merge_stage2 << endl;.
+		ip.lse();
+		vector<vector<Point>> contours = ip.clustered_contours;
+		drawContours(im, contours, 100, Scalar(0, 0, 255), 3);
+
+		imwrite("contour_map_" + to_string(i) + ".png",im);
+		
 		
 	
 	}

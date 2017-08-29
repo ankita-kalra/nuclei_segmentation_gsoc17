@@ -25,7 +25,6 @@ LevelSegmentation::LevelSegmentation(Mat im)
 	cvtColor(input, input, CV_RGB2GRAY);
 	int nPeaks = peaks.rows;
 	Mat allinitialLSF = -c0*(Mat::ones( im.size(),im.type()));
-	Mat allBW;
 	int initialRadius = 5;
 	int nDim = peaks.cols;
 	Mat allBW = Mat::zeros(input.size(), input.type());
@@ -37,7 +36,7 @@ LevelSegmentation::LevelSegmentation(Mat im)
 	{
 		Mat BW;
 		sqrt(rowGrid - (peaks.col(1)).mul(peaks.col(1)) + colGrid - (peaks.col(0)).mul(peaks.col(0)),BW);
-		allBW += BW;
+		allBW = allBW+BW;
 		Sobel(BW, edgeBW,BW.type(),0,1);
 		Mat dm = Mat::zeros(edgeBW.size(), edgeBW.type());
 		distanceTransform(edgeBW, dm, CV_DIST_L2, 3);
@@ -49,11 +48,10 @@ LevelSegmentation::LevelSegmentation(Mat im)
 	lse(input, trainingset);
 }
 
-void LevelSegmentation::lse(Mat input, Mat trainingMat)
+void LevelSegmentation::lse(Mat input)
 { 
 	updateF();
-	updateLSF( g,transform);
-	//TODO - sparse solver
+	updateLSF(g,transform);
 	updateSR();
 }
 
@@ -90,7 +88,7 @@ void LevelSegmentation::updateLSF(Mat g,vector<Mat> transform)
 			Mat Ny = uy.mul(1 / (normDu + epsd));
 			Mat lengthTerm = mu*DiracU.mul(gx.mul(Nx) + gy.mul(Ny) + g.mul(K));
 			Mat penalizeTerm = xi*distReg_p2(u.at(iPhi));
-			Mat exclusiveTerm = -omega*DiracU.mul((Mat::ones(input.size(),input.type())) - B));
+			Mat exclusiveTerm = -omega*DiracU.mul((Mat::ones(input.size(),input.type())) - B);
 			Mat y = u.at(iPhi);
 			y /= norm(y, NORM_L2);
 
@@ -131,13 +129,70 @@ void LevelSegmentation::updateF()
 	NbMat = input.mul(Hb);
 	double Nb = sum(NbMat)[0];
 	double Db = sum(Hb)[0];
-	double cb = Nb / Db
+	double cb = Nb / Db;
 
 }
 
 void LevelSegmentation::updateSR()
-{ 
-	//TODO - Using Dlib c++ or ceres solver
+{   
+	int no_of_points = 100;
+	arma::mat trainset; // The data will be loaded into this matrix.
+	arma::mat final_contour;
+	mlpack::data::Load("trainingShapeMat_v3.csv", trainset);
+	RandomSeed((size_t)time(NULL));
+	SparseCoding sc(0, 0.0);
+	sc.Lambda1() = lambdaB;
+	sc.Lambda2() = lambdaU;
+	sc.MaxIterations() = (size_t)iter_outer;
+	sc.Atoms() = (size_t)no_of_centroids;
+	sc.Dictionary() = trainset;
+	vector<vector<Point>> clustered_contours;
+	for (int it_peaks; it_peaks < peaks.rows; it_peaks++)
+	{
+		Mat x_periphery;
+		Mat y_periphery;
+		Mat initial_contour;
+		double x_coord, y_coord;
+		int radius = 15;
+		for (int it_per = 0; it_per < 100; it_per++)
+		{
+			srand((unsigned)time(0));
+			int random_integer = rand();
+			x_coord = Math.cos(angle)*radius+peaks.at<int>(Point(0,it_peaks));
+			y_coord = Math.sin(angle)*radius+peaks.at<int>(Point(1, it_peaks));
+			x_periphery.push_back(x_coord);
+			y_periphery.push_back(y_coord);
+		}
+		hconcat(x_periphery, y_periphery, initial_contour);
+		initial_contour = initial_contour.t();
+		arma::mat matX(reinterpret_cast<double*>initial_contour.data, initial_contour.rows, initial_contour.cols);
+
+		if (sc.Dictionary().n_rows != matX.n_rows)
+		{
+			cout << "The initial dictionary has " << sc.Dictionary().n_rows
+				<< " dimensions, but the data has " << matX.n_rows << " dimensions!"
+				<< endl;
+		}
+		if (initialized)
+			sc.Train<NothingInitializer>(matX);
+		else
+			sc.Train(matX);
+
+		//normalizing
+			for (size_t i = 0; i < matX.n_cols; ++i)
+				matX.col(i) /= norm(matX.col(i), 2);
+		
+		sc.Encode(matX, codes);
+		final_contour = sc.Dictionary()*codes;
+		Mat final_contour_opencv(final_contour.n_rows, final_contour.n_cols, CV_64FC1, final_contour.memptr());
+		final_contour_opencv = final_contour_opencv.t();
+		std::vector<cv::Point> points;
+		//Loop over each pixel and create a point
+		for (int x = 0; x < final_contour.cols; x++)
+			for (int y = 0; y < final_contour.rows; y++)
+				points.push_back(cv::Point(x, y));
+		clustered_contours.push_back(points);
+	}
 }
 
 Mat LevelSegmentation::readMat(string filename, string variable_name)
@@ -154,7 +209,7 @@ Mat LevelSegmentation::readMat(string filename, string variable_name)
 		cout << filename << " contains vars " << endl;
 		for (int idx = 0; idx < numVars; idx++)
 		{
-			std::cout << "                     " << namePtr[idx] << " ";
+			cout << "                     " << namePtr[idx] << " ";
 			mxArray* m = matGetVariable(pmat, namePtr[idx]);
 			matlab::MxArray mArray(m);
 			cv::bridge::Bridge bridge(mArray);
@@ -187,16 +242,16 @@ Mat LevelSegmentation::NeumannBoundCond(Mat f)
 {
 	int nrow = f.rows;
 	int ncol = f.cols;
-	Mat g = f;
-	Mat mask1 = Mat::zeros(g.size(), g.type());
-	Mat mask2 = Mat::ones(Size(ncol - 4, nrow - 4), g.type());
+	Mat g1 = f;
+	Mat mask1 = Mat::zeros(g1.size(), g1.type());
+	Mat mask2 = Mat::ones(Size(ncol - 4, nrow - 4), g1.type());
 	mask2.copyTo(mask1(Rect(2,2,ncol-4,nrow-4)));
-	f(Rect(2, 2, ncol - 4, nrow - 4)).copyTo(g(Rect(0,0,ncol-4,nrow-4)));
-	Mat temp = g;
-	temp(Rect(1, 2, ncol - 3, nrow-5)).copyTo(g(Rect(1, 0, ncol - 3, nrow-5)));
-	temp = g;
-	temp(Rect(2, 1, ncol - 5, nrow - 3)).copyTo(g(Rect(0, 1, ncol - 5, nrow - 3)));
-	return g;
+	f(Rect(2, 2, ncol - 4, nrow - 4)).copyTo(g1(Rect(0,0,ncol-4,nrow-4)));
+	Mat temp = g1;
+	temp(Rect(1, 2, ncol - 3, nrow-5)).copyTo(g1(Rect(1, 0, ncol - 3, nrow-5)));
+	temp = g1;
+	temp(Rect(2, 1, ncol - 5, nrow - 3)).copyTo(g1(Rect(0, 1, ncol - 5, nrow - 3)));
+	return g1;
 }
 
 Mat LevelSegmentation::div_norm(Mat in)
@@ -231,7 +286,7 @@ Mat LevelSegmentation::distReg_p2(Mat phi)
 	Mat dps_x = dps_grad.first, dps_y=dps_grad.second;
 	Mat temp;
 	Laplacian(phi, temp,phi.type());
-	Mat f = (dps_x.mul(phi_x) + dps_y.mul(phi_y) + 4 * dps.mul(temp);
+	Mat f = dps_x.mul(phi_x) + dps_y.mul(phi_y) + 4 * dps.mul(temp);
 }
 
 Mat LevelSegmentation::divergence(Mat X, Mat Y) {
@@ -239,7 +294,8 @@ Mat LevelSegmentation::divergence(Mat X, Mat Y) {
 	//These are just 1, 2, 3, 4...till number of columns/rows
 	Mat retval_x = gradientX(X, 1);
 	Mat temp_y = Y.t();
-	Mat retval_y = gradientY(temp_y, 1).t();
+	Mat retval_y = gradientY(temp_y, 1);
+	retval_y=retval_y.t();
 	Mat retval = retval_x + retval_y;
 	return retval;
 }
@@ -250,31 +306,30 @@ Mat LevelSegmentation::post_process(Mat u, Mat peakX, Mat peakY)
 	int c0 = 5;
 	const int nCol = u.cols;
 	const int nRow = u.rows;
-
 	threshold(u, BW, 0, THRESH_TOZERO);
-
 	Mat connComp;
 	int nComp = connectedComponents(BW, connComp);
-
 	Mat linearPeak = (peakX - 1)*nRow + peakY;
-
 	int biasThreshold = 3;
-
 	//--
 	return u;
 }
 
-pair<Mat, Mat> LevelSegmentation::gradient(Mat & img, float spaceX, float spaceY) {
-
-	Mat gradY = gradientY(img, spaceY);
-	Mat gradX = gradientX(img, spaceX);
-	pair<Mat, Mat> retValue(gradX, gradY);
-	return retValue;
+void LevelSegmentation::meshgrid(const cv::Mat &xgv, const cv::Mat &ygv,cv::Mat1i &X, cv::Mat1i &Y)
+{
+	cv::repeat(xgv.reshape(1, 1), ygv.total(), 1, X);
+	cv::repeat(ygv.reshape(1, 1).t(), 1, xgv.total(), Y);
 }
 
-/// Internal method to get numerical gradient for x components. 
-/// @param[in] mat Specify input matrix.
-/// @param[in] spacing Specify input space.
+void LevelSegmentation::meshgridTest(const cv::Range &xgv, const cv::Range &ygv,
+	cv::Mat1i &X, cv::Mat1i &Y)
+{
+	vector<int> t_x, t_y;
+	for (int i = xgv.start; i <= xgv.end; i++) t_x.push_back(i);
+	for (int i = ygv.start; i <= ygv.end; i++) t_y.push_back(i);
+	meshgrid(cv::Mat(t_x), cv::Mat(t_y), X, Y);
+}
+
 static Mat gradientX(Mat & mat, float spacing) {
 	Mat grad = Mat::zeros(mat.cols, mat.rows, CV_32F);
 
@@ -298,10 +353,6 @@ static Mat gradientX(Mat & mat, float spacing) {
 	resultCenteredMat.copyTo(grad(Rect(1, 0, maxCols - 2, maxRows)));
 	return grad;
 }
-
-/// Internal method to get numerical gradient for y components. 
-/// @param[in] mat Specify input matrix.
-/// @param[in] spacing Specify input space.
 static Mat gradientY(Mat & mat, float spacing) {
 	Mat grad = Mat::zeros(mat.cols, mat.rows, CV_32F);
 
@@ -326,21 +377,10 @@ static Mat gradientY(Mat & mat, float spacing) {
 	return grad;
 }
 
-static void meshgrid(const cv::Mat &xgv, const cv::Mat &ygv,
-	cv::Mat1i &X, cv::Mat1i &Y)
-{
-	cv::repeat(xgv.reshape(1, 1), ygv.total(), 1, X);
-	cv::repeat(ygv.reshape(1, 1).t(), 1, xgv.total(), Y);
+pair<Mat, Mat> gradient(Mat & img, float spaceX, float spaceY) {
+
+	Mat gradY = gradientY(img, spaceY);
+	Mat gradX = gradientX(img, spaceX);
+	pair<Mat, Mat> retValue(gradX, gradY);
+	return retValue;
 }
-
-
-static void meshgridTest(const cv::Range &xgv, const cv::Range &ygv,
-	cv::Mat1i &X, cv::Mat1i &Y)
-{
-	std::vector<int> t_x, t_y;
-	for (int i = xgv.start; i <= xgv.end; i++) t_x.push_back(i);
-	for (int i = ygv.start; i <= ygv.end; i++) t_y.push_back(i);
-	meshgrid(cv::Mat(t_x), cv::Mat(t_y), X, Y);
-}
-
-
