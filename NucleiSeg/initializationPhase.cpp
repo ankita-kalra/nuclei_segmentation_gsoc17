@@ -12,7 +12,7 @@ initializationPhase::initializationPhase(Mat im)
 }
 
 Mat initializationPhase::im_32f_or_64f_to_8u(Mat _fpImage) {
-	
+
 	double minVal;
 	double maxVal;
 	Point minLoc;
@@ -21,12 +21,12 @@ Mat initializationPhase::im_32f_or_64f_to_8u(Mat _fpImage) {
 	_fpImage -= minVal;
 	Mat _8ucImage;
 	_fpImage.convertTo(_8ucImage, CV_8U, 255 / (maxVal - minVal));
-	
+
 	return _8ucImage;
 }
 
 vector<Mat> initializationPhase::colordeconv(Mat I, Mat M, Mat stains)
-{   
+{
 	Mat diff_checker; vector<Mat> test;
 	for (int i = 0; i < 3; i++)
 	{
@@ -34,17 +34,17 @@ vector<Mat> initializationPhase::colordeconv(Mat I, Mat M, Mat stains)
 			M.col(i) /= norm(M.col(i));
 	}
 	if (norm(M.col(2)) == 0)
-	{   
-		double x1 =  pow(M.at<double>(0, 0),2);
+	{
+		double x1 = pow(M.at<double>(0, 0), 2);
 		double x2 = pow(M.at<double>(0, 1), 2);
 		if ((x1 + x2) > 1)
 			M.at<double>(0, 2) = 0;
 		else
 		{
-			M.at<double>(0, 2) = sqrt(1-(x1+x2));
+			M.at<double>(0, 2) = sqrt(1 - (x1 + x2));
 		}
-		 x1 = pow(M.at<double>(1, 0), 2);
-		 x2 = pow(M.at<double>(1, 1), 2);
+		x1 = pow(M.at<double>(1, 0), 2);
+		x2 = pow(M.at<double>(1, 1), 2);
 		if ((x1 + x2) > 1)
 			M.at<double>(1, 2) = 0;
 		else
@@ -57,32 +57,32 @@ vector<Mat> initializationPhase::colordeconv(Mat I, Mat M, Mat stains)
 			M.at<double>(2, 2) = 0;
 		else
 		{
-			M.at<double>(2, 2) = sqrt(1 -( x1 + x2));
+			M.at<double>(2, 2) = sqrt(1 - (x1 + x2));
 		}
-		M.col(2)/= norm(M.col(2));
+		M.col(2) /= norm(M.col(2));
 	}
 	cout << "M= " << endl << M << endl;
-	Mat Q = (Mat_<double>(3, 3) << 4.8869, - 0.7311, - 3.9831, -4.3780 ,   1.8015  ,  3.5684, -0.0688 ,- 0.4440  ,  1.3462);
+	Mat Q = (Mat_<double>(3, 3) << 4.8869, -0.7311, -3.9831, -4.3780, 1.8015, 3.5684, -0.0688, -0.4440, 1.3462);
 	Q = M.inv(DECOMP_LU);
 	cvtColor(I, I, CV_BGR2RGB);
 	split(I, test);
 	merge(test, I);
-	Mat temp1 = im2vec(I),temp1_1,temp1_2;
-	temp1.convertTo(temp1_2,CV_32F);
-	Mat y_OD = colordeconv_normalize(temp1_2); 
+	Mat temp1 = im2vec(I), temp1_1, temp1_2;
+	temp1.convertTo(temp1_2, CV_32F);
+	Mat y_OD = colordeconv_normalize(temp1_2);
 	y_OD.convertTo(y_OD, CV_64FC1);
 
 	Q.convertTo(Q, CV_32FC1);
 	Q.convertTo(Q, CV_64FC1);
-	
+
 	Mat C = Q*y_OD;
 	Mat channel = colordeconv_denormalize(C);
 	int m = I.rows; int n = I.cols;
-	Mat intensity=Mat::zeros(I.size(),CV_32FC3),temp2;
+	Mat intensity = Mat::zeros(I.size(), CV_32FC3), temp2;
 	vector<Mat> splitCh;
 	cv::split(intensity, splitCh);
 	for (int i = 0; i < stains.cols; i++)
-	{   
+	{
 		temp2 = channel.row(i);
 		temp2.convertTo(temp2, CV_8UC1);
 		splitCh[i] = matlab_reshape(temp2, m, n, 1);
@@ -90,9 +90,9 @@ vector<Mat> initializationPhase::colordeconv(Mat I, Mat M, Mat stains)
 	merge(splitCh, intensity);
 
 	vector<Mat> colorStainImages;
-	Mat stain_OD, stain_RGB,temp3;
+	Mat stain_OD, stain_RGB, temp3;
 	for (int i = 0; i <3; i++)
-	{  
+	{
 		stain_OD = M.col(i)*C.row(i);
 		stain_RGB = colordeconv_denormalize(stain_OD);
 		double minVal;
@@ -115,8 +115,8 @@ vector<Mat> initializationPhase::colordeconv(Mat I, Mat M, Mat stains)
 }
 
 Mat initializationPhase::preprocess_hemat_generate_vote(Mat hemat)
-{  
-    Mat CCS= complement_contrast_smoothen(hemat);
+{
+	Mat CCS = complement_contrast_smoothen(hemat);
 	Mat diff = diff_image(CCS);
 	CCS.release();
 	diff.convertTo(diff, CV_32F);
@@ -172,14 +172,14 @@ int initializationPhase::matlab_min(Mat accuD)
 	return min_idx;
 }
 
-Mat initializationPhase::merge1(Mat input,Mat vote_map)
+Mat initializationPhase::merge1(Mat input, Mat vote_map)
 {
 	Mat bin_image;
 	Mat temp_input = input.clone();
 	cvtColor(temp_input, temp_input, CV_BGR2GRAY);
 	cout << "input  ready" << endl;
 	cout << temp_input.type() << endl;
- 	threshold(temp_input, bin_image, 0, 255, THRESH_BINARY | THRESH_OTSU);
+	threshold(temp_input, bin_image, 0, 255, THRESH_BINARY | THRESH_OTSU);
 	cout << "threshold done" << endl;
 	cout << bin_image.data << endl;
 	Mat otsuBW = bwareaopen(bin_image, 150);
@@ -212,7 +212,7 @@ Mat initializationPhase::merge1(Mat input,Mat vote_map)
 	Mat mtrev = mt.clone();
 	mtrev.convertTo(mtrev, CV_32F);
 	cv::sort(mt, mt, CV_SORT_EVERY_COLUMN + CV_SORT_DESCENDING);
-	Mat vnorm = (mtrev - mt.at<int>(0,mt.rows-1))/(float)(mt.at<int>(0,0)-mt.at<int>(0,mt.rows-1));
+	Mat vnorm = (mtrev - mt.at<int>(0, mt.rows - 1)) / (float)(mt.at<int>(0, 0) - mt.at<int>(0, mt.rows - 1));
 	Mat removeTF;
 	for (int i = 0; i < mtrev.rows; i++)
 	{
@@ -221,7 +221,7 @@ Mat initializationPhase::merge1(Mat input,Mat vote_map)
 		const int connectivity_4 = 4;
 		Mat labels, stats, centroids;
 		int nLabels = connectedComponentsWithStats(a, labels, stats, centroids, connectivity_4, CV_32S);
-		Mat merge_criteria1,areas_b,idxes;
+		Mat merge_criteria1, areas_b, idxes;
 		centroids = max(1, centroids);
 		centroids.col(0) = min(vote_map.cols, centroids.col(0));
 		centroids.col(1) = min(vote_map.rows, centroids.col(1));
@@ -234,19 +234,24 @@ Mat initializationPhase::merge1(Mat input,Mat vote_map)
 			//centroids.convertTo(centroids, CV_8UC1);
 			//cout << centroids << endl;
 			//cout << "centroid x: " << (int)(centroids.col(0)).at<int>(1) << " centroid y: " << (int)(centroids.col(1)).at<int>(1) << endl;
-			cout << otsuBW.at<int>(Point((int)(centroids.col(0)).at<double>(i1), (int)centroids.col(1).at<double>(i1))) << endl;
+			//cout << otsuBW.at<int>(Point((int)(centroids.col(0)).at<double>(i1), (int)centroids.col(1).at<double>(i1))) << endl;
 			otsuTF.push_back(otsuBW.at<int>(Point((int)(centroids.col(0)).at<double>(i1), (int)centroids.col(1).at<double>(i1))));
 			areas_b.push_back(stats.at<int>(i + 1, CC_STAT_AREA) > area_threshold);
-			bitwise_and(areas_b, otsuTF,merge_criteria1);
+			bitwise_and(areas_b, otsuTF, merge_criteria1);
+			cout << "merge_criteria1 size " << merge_criteria1 << endl;
 			otsuTF.release(); areas_b.release();
-			if (merge_criteria1.at<int>(i1) != 0)idxes.push_back(i1 + 1);
+			if (merge_criteria1.at<int>(i1, 0) != 0)idxes.push_back(i1 + 1);
 		}
-		Mat b=ismember_poly(labels, idxes);
+		Mat b = ismember_poly(labels, idxes);
+		//cout << b << endl;
 		labels.release(), stats.release(), centroids.release();
+		cout << type2str(b.type()) << endl;
+		b.convertTo(b, CV_8UC1);
+		cout << type2str(b.type()) << endl;
 		nLabels = connectedComponentsWithStats(b, labels, stats, centroids, connectivity_4, CV_32S);
 		int cand_length = centroids.rows;
-		cout << "new" << cand_length << "center candidates at voting threshold: " << mt.at<int>(i) << endl;
-		
+		cout << "new " << cand_length << "center candidates at voting threshold: " << mt.at<int>(i) << endl;
+
 		if (!peaks.rows == 0 && !peaks.cols == 0)
 		{
 			for (int i1 = 0; i1 < peaks.rows; i1++)
@@ -264,6 +269,10 @@ Mat initializationPhase::merge1(Mat input,Mat vote_map)
 			for (int iwl = 0; iwl < temp_idx.cols; iwl++)
 			{
 				curr = temp_idx.at<int>(Point(iwl, 1)) - 1;
+				for (int jwl = prev; jwl < curr; jwl++)
+				{
+					new_centroids.push_back(centroids);
+				}
 				new_centroids.push_back(centroids(Rect(0, prev, 2, curr - prev)));
 				prev = curr + 1;
 			}
@@ -275,26 +284,32 @@ Mat initializationPhase::merge1(Mat input,Mat vote_map)
 		{
 			cout << "removeTF is null" << endl;
 		}
-		
+
 		centroids = max(1, centroids);
 		centroids.col(0) = min(vote_map.cols, centroids.col(0));
 		centroids.col(1) = min(vote_map.rows, centroids.col(1));
 		Mat temp_peaks = peaks;
-	    temp_peaks.push_back(centroids);
+		temp_peaks.push_back(centroids);
 		centroids = temp_peaks;
 		int dist_length = 0;
 		while (1)
 		{
 			Mat D;
-			
+
 			for (int i2 = 0; i2 < centroids.rows - 1; i2++)
 			{
-				for (int j2 = 1; j2 < centroids.rows ; j2++)
+				for (int j2 = 1; j2 < centroids.rows; j2++)
 				{
-					D.push_back(cv::norm(Point((centroids.col(0)).at<int>(i2), centroids.col(1).at<int>(i2))- Point((centroids.col(0)).at<int>(j2), centroids.col(1).at<int>(j2))));
+					D.push_back(cv::norm(Point((centroids.col(0)).at<double>(0, i2), centroids.col(1).at<double>(0, i2)) - Point((centroids.col(0)).at<double>(0, j2), centroids.col(1).at<double>(0, j2))));
 				}
 			}
-			Mat evaluate = D > minD;
+			//cout << "D size: " << D.size() << " minD: " << minD.size() << endl;
+			Mat comp = Mat::ones(D.size(), D.type());
+			comp *= minD;
+			Mat evaluate;
+		    cv::compare(D, comp, evaluate, cv::CMP_GE);
+			//comp.release();
+
 			if (sum(evaluate).val[0] == D.rows)
 				break;
 			D = squareform(D);
@@ -312,83 +327,87 @@ Mat initializationPhase::merge1(Mat input,Mat vote_map)
 				mergeTF_temp = mergeTF(Rect(i4 + 1, i4, mergeTF.cols - i4 - 1, 1));
 				mergeTF_temp = mergeTF_temp.t();
 				lineMergeTF.push_back(mergeTF_temp);
-
+				cout << "D= " << type2str(D.type()) << " centroids= " << type2str(centroids.type()) << endl;
 				if (sum(lineMergeTF)[0] != 0)
 				{
 					Mat temp = matlab_find_poly(lineMergeTF);
 					float sumatidex = 0;
 					for (int iwl = 0; iwl < temp.cols; iwl++)
 					{
-						sumatidex += D.at<float>(Point(temp.at<int>(Point(iwl, 1))-1, i4));
+						sumatidex += D.at<float>(Point(temp.at<int>(Point(iwl, 1)) - 1, i4));
 
 					}
 					accuD.at<double>(Point(0, i4)) = sumatidex;
 				}
 
 			}
-				int minInd = matlab_min(accuD);
+			int minInd = matlab_min(accuD);
 
-				Mat minLineMergeTF = Mat::zeros(Size(1, minInd), CV_8UC1);
-				minLineMergeTF.push_back(1);
-				mergeTF_temp = mergeTF(Rect(minInd + 1, minInd, mergeTF.cols - minInd - 1, 1));
-				mergeTF_temp = mergeTF_temp.t();
-				minLineMergeTF.push_back(mergeTF_temp);
+			Mat minLineMergeTF = Mat::zeros(Size(1, minInd), CV_8UC1);
+			cout << "minLineMergeTF= " << type2str(minLineMergeTF.type()) << " mergeTF_temp= " << type2str(mergeTF_temp.type()) << " mergeTF= " << type2str(mergeTF.type()) << endl;
+			minLineMergeTF.push_back(1);
+			mergeTF_temp = mergeTF(Rect(minInd + 1, minInd, mergeTF.cols - minInd - 1, 1));
+			for (int imtf = 0; imtf < mergeTF.cols; imtf++)
+			{
+				minLineMergeTF.push_back(mergeTF_temp.at<int>(Point(imtf, 0)));
 
-				Mat temp = matlab_find_poly(minLineMergeTF);
-				float sumatidex = 0,sumatidey=0;
-				for (int iwl = 0; iwl < temp.cols; iwl++)
-				{
-					sumatidex += centroids.at<float>(Point(0,temp.at<int>(Point(iwl, 1))));
-					sumatidey += centroids.at<float>(Point(1,temp.at<int>(Point(iwl, 1))));
-				}
-				sumatidex /= temp.cols; sumatidey /= temp.cols;
-				Point cluster_c = Point(sumatidex, sumatidey);
-				centroids.at<float>(Point(0, minInd)) = sumatidex;
-				centroids.at<float>(Point(1, minInd)) = sumatidey;
-				Mat remainingMergeTF = Mat::zeros(Size(1, minInd), CV_8UC1);
-				mergeTF_temp = mergeTF(Rect(minInd + 1, minInd, mergeTF.cols - minInd - 1, 1));
-				mergeTF_temp = mergeTF_temp.t();
-				remainingMergeTF.push_back(mergeTF_temp); 
-				temp = matlab_find_poly(remainingMergeTF);
-				Mat new_centroids; int prev = 0, curr = 0;
-				for (int iwl = 0; iwl < temp.cols; iwl++)
-				{     
-					 curr = temp.at<int>(Point(iwl, 1))-1;
-					 new_centroids.push_back(centroids(Rect(0, prev, 2, curr - prev)));
-					 prev = curr + 1;
-					// centroids.at<float>(Point(0,curr));
-					// centroids.at<float>(Point(1, temp.at<int>(Point(iwl, 1))));
-				}
-				centroids = new_centroids.clone();
-				std::cout << "cluster " << sum(minLineMergeTF) << "adjacent points by distance metric: minD= " << minD << endl;
-				Scalar s1 = sum(minLineMergeTF);
-				dist_length = dist_length + s1(0) - 1;
-			}//while 1
+			}
+			Mat temp = matlab_find_poly(minLineMergeTF);
+			float sumatidex = 0, sumatidey = 0;
+			cout << Point(0, temp.at<int>(Point(1, 1))) << endl;
+			cout << Point(1, temp.at<int>(Point(1, 1))) << endl;
+			for (int iwl = 0; iwl < temp.cols; iwl++)
+			{
+				sumatidex += centroids.at<float>(Point(0, temp.at<int>(Point(iwl, 1))));
+				sumatidey += centroids.at<float>(Point(1, temp.at<int>(Point(iwl, 1))));
+			}
+			sumatidex /= temp.cols; sumatidey /= temp.cols;
+			Point cluster_c = Point(sumatidex, sumatidey);
+			centroids.at<float>(Point(0, minInd)) = sumatidex;
+			centroids.at<float>(Point(1, minInd)) = sumatidey;
+			Mat remainingMergeTF = Mat::zeros(Size(1, minInd), CV_8UC1);
+			mergeTF_temp = mergeTF(Rect(minInd + 1, minInd, mergeTF.cols - minInd - 1, 1));
+			mergeTF_temp = mergeTF_temp.t();
+			remainingMergeTF.push_back(mergeTF_temp);
+			temp = matlab_find_poly(remainingMergeTF);
+			Mat new_centroids; int prev = 0, curr = 0;
+			for (int iwl = 0; iwl < temp.cols; iwl++)
+			{
+				curr = temp.at<int>(Point(iwl, 1)) - 1;
+				new_centroids.push_back(centroids(Rect(0, prev, 2, curr - prev)));
+				prev = curr + 1;
+				
+			}
+			centroids = new_centroids.clone();
+			std::cout << "cluster " << sum(minLineMergeTF) << "adjacent points by distance metric: minD= " << minD << endl;
+			Scalar s1 = sum(minLineMergeTF);
+			dist_length = dist_length + s1(0) - 1;
+		}//while 1
 
 		int orig_length = peaks.rows;
 		peaks = centroids;
-		cout << "After voting threshold" << mt.at<int>(0,i) << " : "
+		cout << "After voting threshold" << mt.at<int>(0, i) << " : "
 			<< orig_length << "(original)+" << cand_length << "(new candidate)-" << sum(removeTF) << "(connection)-" << dist_length << "(distance)=" << peaks.rows << endl << endl;
 		if ((orig_length + cand_length - sum(removeTF)(0) - dist_length) != peaks.rows)
 			cout << "error" << endl;
-		
-		}//for metrev
-		return peaks;
-	}//merge1
 
-Mat initializationPhase::merge2(Mat input,Mat im)
-{   
+	}//for metrev
+	return peaks;
+}//merge1
+
+Mat initializationPhase::merge2(Mat input, Mat im)
+{
 	Mat edge_canny;
-	Mat gray_sc; 
+	Mat gray_sc;
 	cvtColor(im, gray_sc, CV_BGR2GRAY);
-	Canny(gray_sc, edge_canny,50,150,3);
+	Canny(gray_sc, edge_canny, 50, 150, 3);
 	Mat peaks_stage1 = input;
 	cout << "----------------------------------------------------------------" << endl << endl;
 	cout << "Stage 2: Merge peaks with distance and canny edge constraints..." << endl;
 	int minD = 25;
 	int canny_dist_length = 0;
 	while (1)
-	{ 
+	{
 		Mat D;
 
 		for (int i2 = 0; i2 < input.rows - 1; i2++)
@@ -417,7 +436,7 @@ Mat initializationPhase::merge2(Mat input,Mat im)
 		}
 		Mat accuD = Mat::zeros(Size(1, D.rows - 1), CV_32F);
 		accuD = INFINITY;
-		Mat mergeTF_temp,edgeTF_temp;
+		Mat mergeTF_temp, edgeTF_temp;
 		for (int i4 = 0; i4 < D.rows - 1; i4++)
 		{
 			Mat lineMergeTF = Mat::zeros(Size(1, i4 + 1), CV_8UC1);
@@ -449,7 +468,7 @@ Mat initializationPhase::merge2(Mat input,Mat im)
 		minLineMergeTF.push_back(1);
 		Mat temp_eval;
 		bitwise_not(edgeTF, edgeTF);
-		bitwise_and(mergeTF,edgeTF,temp_eval);
+		bitwise_and(mergeTF, edgeTF, temp_eval);
 		mergeTF_temp = temp_eval(Rect(minInd + 1, minInd, mergeTF.cols - minInd - 1, 1));
 		mergeTF_temp = mergeTF_temp.t();
 		minLineMergeTF.push_back(mergeTF_temp);
@@ -486,7 +505,7 @@ Mat initializationPhase::merge2(Mat input,Mat im)
 	}
 
 	cout << peaks_stage1.rows << " (original)- " << canny_dist_length << " (distance)= " << peaks_stage1.rows - canny_dist_length << "(final)" << endl;
-	Mat stage1TF = Mat::ones(Size(peaks_stage1.rows,1),CV_8UC1);
+	Mat stage1TF = Mat::ones(Size(peaks_stage1.rows, 1), CV_8UC1);
 	Mat xTF, yTF;
 	for (int ixtf = 0; ixtf < peaks_stage1.rows; ixtf++)
 	{
@@ -499,10 +518,10 @@ Mat initializationPhase::merge2(Mat input,Mat im)
 		Mat temp_ytf = matlab_find_poly(input);
 		for (int iytf = 0; iytf < temp_ytf.cols; iytf++)
 		{
-			yTF.push_back(input.at<int>(Point(1, temp_ytf.at<int>(Point(iytf, 0))))==peaks_stage1.at<int>(Point(1,ixtf)));
+			yTF.push_back(input.at<int>(Point(1, temp_ytf.at<int>(Point(iytf, 0)))) == peaks_stage1.at<int>(Point(1, ixtf)));
 		}
-			if (sum(yTF).val[0] == 0)
-				stage1TF.at<int>(0, ixtf) = 0;
+		if (sum(yTF).val[0] == 0)
+			stage1TF.at<int>(0, ixtf) = 0;
 
 	}
 	return peaks_stage1;
@@ -520,9 +539,9 @@ bool initializationPhase::findValue(const cv::Mat &mat, T value) {
 
 template <typename T>
 Mat initializationPhase::ismember(Mat_<T> mat1, Mat_<T> mat2)
-{  
+{
 	Mat oldMat = mat1;
-	Mat newMat = Mat::zeros(oldMat.size(),oldMat.type());
+	Mat newMat = Mat::zeros(oldMat.size(), oldMat.type());
 	for (int r = 0; r < newMat.rows; r++)
 	{
 		for (int c = 0; c < newMat.cols; c++)
@@ -540,21 +559,21 @@ Mat initializationPhase::ismember_poly(Mat mat1, Mat mat2)
 {
 	switch (mat1.type())
 	{
-		case CV_8U:
-			cout << "case 1" << endl;
-			return ismember<int>(mat1, mat2);
-			break;
-		case CV_32F:
-			cout << "case 2" << endl;
-			return ismember<float>(mat1, mat2);
-			break;
-		case CV_64F:
-			cout << "case 3" << endl;
-			return ismember<double>(mat1, mat2);
-			break;
-		default:
-			cout << "default" << endl;
-			return ismember<int>(mat1, mat2);
+	case CV_8U:
+		cout << "case 1" << endl;
+		return ismember<int>(mat1, mat2);
+		break;
+	case CV_32F:
+		cout << "case 2" << endl;
+		return ismember<float>(mat1, mat2);
+		break;
+	case CV_64F:
+		cout << "case 3" << endl;
+		return ismember<double>(mat1, mat2);
+		break;
+	default:
+		cout << "default" << endl;
+		return ismember<int>(mat1, mat2);
 	}
 
 }
@@ -568,7 +587,7 @@ Mat initializationPhase::matlab_find(Mat_<T> mat1)
 		for (int c = 0; c < mat1.cols; c++)
 		{
 			if (mat1.at<T>(Point(c, r)) != 0)
-				sfind_result.push_back(c + r + 1);
+				find_result.push_back(c + r + 1);
 		}
 	}
 	return find_result.t();
@@ -585,7 +604,7 @@ Mat initializationPhase::matlab_find_poly(Mat mat1)
 	case CV_64F:
 		return matlab_find<double>(mat1);
 	default:
-		cout << "default" << endl; 
+		cout << "default" << endl;
 		return matlab_find<int>(mat1);
 
 	}
@@ -703,13 +722,13 @@ Mat initializationPhase::matlab_pedge(Mat peaks, Mat edge_canny, Mat D, int minD
 }
 
 Mat initializationPhase::im2vec(Mat I)
-{ 
+{
 	int M = I.rows;
 	int N = I.cols;
 	vector<Mat> splitted;
 	Mat vec;
 	Mat temp;
-	
+
 	if (I.channels() == 3)
 	{
 		cv::split(I, splitted);
@@ -717,7 +736,7 @@ Mat initializationPhase::im2vec(Mat I)
 		{
 			transpose(splitted[i], splitted[i]);
 			temp = splitted[i].reshape(0, 1);
-			temp.convertTo(temp,CV_64F);
+			temp.convertTo(temp, CV_64F);
 			vec.push_back(temp);
 		}
 	}
@@ -728,7 +747,7 @@ Mat initializationPhase::im2vec(Mat I)
 		vec.push_back(I.reshape(0, 1));
 	}
 	else
-	{   
+	{
 		vec.push_back(Mat::zeros(Size(1, 1), CV_64FC1));
 	}
 	std::cout << "im2vec size: " << vec.size() << endl;
@@ -736,14 +755,14 @@ Mat initializationPhase::im2vec(Mat I)
 }
 
 Mat initializationPhase::colordeconv_normalize(Mat data)
-{  
+{
 	Mat denorm_deconv;
 	double epsd = numeric_limits<double>::epsilon();
 	data += epsd; data /= 255;
 	log(data, denorm_deconv);
 	denorm_deconv *= -1;
 	return denorm_deconv;
-	 
+
 }
 
 Mat initializationPhase::colordeconv_denormalize(Mat data)
@@ -755,8 +774,8 @@ Mat initializationPhase::colordeconv_denormalize(Mat data)
 }
 
 Mat initializationPhase::complement_contrast_smoothen(Mat hemat)
-{   
-	Mat result, G,h;
+{
+	Mat result, G, h;
 	int kernel_size = 4;
 	Mat gray_hemat;
 	double alpha = 3.0; int beta = 30;
@@ -768,13 +787,13 @@ Mat initializationPhase::complement_contrast_smoothen(Mat hemat)
 	{
 		for (int x = 0; x < gray_hemat.cols; x++)
 		{
-				result.at<uchar>(y, x) =
-					saturate_cast<uchar>(alpha*(gray_hemat.at<uchar>(y, x)) + beta);
+			result.at<uchar>(y, x) =
+				saturate_cast<uchar>(alpha*(gray_hemat.at<uchar>(y, x)) + beta);
 		}
 	}
-	
+
 	h = 255 - result;
-	GaussianBlur(h,G, Size(2*kernel_size+1, 2*kernel_size+1), 1);
+	GaussianBlur(h, G, Size(2 * kernel_size + 1, 2 * kernel_size + 1), 1);
 	return G;
 }
 
@@ -785,7 +804,7 @@ Mat initializationPhase::diff_image(Mat smoothened)
 	int morph_elem = MORPH_ELLIPSE;
 	Mat element = getStructuringElement(morph_elem, Size(2 * morph_size + 1, 2 * morph_size + 1));
 	morphologyEx(smoothened, result, MORPH_OPEN, element);
-	result = abs(smoothened-result);
+	result = abs(smoothened - result);
 	return result;
 }
 
@@ -793,8 +812,8 @@ Mat initializationPhase::voting_map_const(Mat pp) {
 	frangi2d_opts_t opts;
 	frangi2d_createopts(&opts);
 	Mat vesselness, scale, angles;
-	return frangi2d_vote(pp,opts);
-	
+	return frangi2d_vote(pp, opts);
+
 }
 
 Mat initializationPhase::matlab_reshape(const Mat &m, int new_row, int new_col, int new_ch)
@@ -838,7 +857,7 @@ bool initializationPhase::are_both_mats_same(Mat a, string filename, string vari
 	if (local.size() == a.size())
 	{
 		Scalar diff = sum(local - a);
-		if (diff == Scalar(0,0,0,0))
+		if (diff == Scalar(0, 0, 0, 0))
 			return true;
 		else {
 			cout << "diff= " << endl << diff << endl;
@@ -888,4 +907,3 @@ Mat initializationPhase::bwareaopen(Mat img, int size)
 
 	return newimg;
 }
-
